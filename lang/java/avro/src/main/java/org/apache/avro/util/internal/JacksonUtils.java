@@ -17,22 +17,17 @@
  */
 package org.apache.avro.util.internal;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import org.apache.avro.AvroRuntimeException;
-import org.apache.avro.JsonProperties;
-import org.apache.avro.Schema;
-
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.TokenBuffer;
+import org.apache.avro.AvroRuntimeException;
+import org.apache.avro.JsonProperties;
+import org.apache.avro.Schema;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 public class JacksonUtils {
 
@@ -54,7 +49,7 @@ public class JacksonUtils {
 
   @SuppressWarnings(value = "unchecked")
   static void toJson(Object datum, JsonGenerator generator) throws IOException {
-    if (datum == JsonProperties.NULL_VALUE) { // null
+    if (datum == JsonProperties.NULL_VALUE || datum == null) { // null
       generator.writeNull();
     } else if (datum instanceof Map) { // record, map
       generator.writeStartObject();
@@ -93,13 +88,16 @@ public class JacksonUtils {
   }
 
   public static Object toObject(JsonNode jsonNode, Schema schema) {
-    if (schema != null && schema.getType().equals(Schema.Type.UNION)) {
-      return toObject(jsonNode, schema.getTypes().get(0));
-    }
     if (jsonNode == null) {
       return null;
     } else if (jsonNode.isNull()) {
       return JsonProperties.NULL_VALUE;
+    } else if (schema != null && schema.getType().equals(Schema.Type.UNION)) {
+      if (!schema.getTypes().get(0).getType().equals(Schema.Type.NULL)) {
+        return toObject(jsonNode, schema.getTypes().get(0));
+      } else {
+        return toObject(jsonNode, schema.getTypes().get(1));
+      }
     } else if (jsonNode.isBoolean()) {
       return jsonNode.asBoolean();
     } else if (jsonNode.isInt()) {

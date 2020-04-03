@@ -25,30 +25,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.NullNode;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Serializable;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import org.apache.avro.util.internal.Accessor;
 import org.apache.avro.util.internal.Accessor.FieldAccessor;
 import org.apache.avro.util.internal.JacksonUtils;
+
+import java.io.*;
+import java.util.*;
 
 /**
  * An abstract data type.
@@ -120,14 +102,14 @@ public abstract class Schema extends JsonProperties implements Serializable {
     RECORD, ENUM, ARRAY, MAP, UNION, FIXED, STRING, BYTES, INT, LONG, FLOAT, DOUBLE, BOOLEAN, NULL;
     private final String name;
 
-    private Type() {
+    Type() {
       this.name = this.name().toLowerCase(Locale.ENGLISH);
     }
 
     public String getName() {
       return name;
     }
-  };
+  }
 
   private final Type type;
   private LogicalType logicalType = null;
@@ -494,10 +476,10 @@ public abstract class Schema extends JsonProperties implements Serializable {
       ASCENDING, DESCENDING, IGNORE;
       private final String name;
 
-      private Order() {
+      Order() {
         this.name = this.name().toLowerCase(Locale.ENGLISH);
       }
-    };
+    }
 
     /**
      * For Schema unions with a "null" type as the first entry, this can be used to
@@ -539,14 +521,14 @@ public abstract class Schema extends JsonProperties implements Serializable {
      *
      */
     public Field(String name, Schema schema) {
-      this(name, schema, (String) null, (JsonNode) null, true, Order.ASCENDING);
+      this(name, schema, null, null, true, Order.ASCENDING);
     }
 
     /**
      *
      */
     public Field(String name, Schema schema, String doc) {
-      this(name, schema, doc, (JsonNode) null, true, Order.ASCENDING);
+      this(name, schema, doc, null, true, Order.ASCENDING);
     }
 
     /**
@@ -571,7 +553,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
 
     public String name() {
       return name;
-    };
+    }
 
     /** The position of this field within the record. */
     public int pos() {
@@ -673,7 +655,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
         this.name = validateName(name);
       } else { // qualified name
         space = name.substring(0, lastDot); // get space from name
-        this.name = validateName(name.substring(lastDot + 1, name.length()));
+        this.name = validateName(name.substring(lastDot + 1));
       }
       if ("".equals(space))
         space = null;
@@ -1543,49 +1525,56 @@ public abstract class Schema extends JsonProperties implements Serializable {
   }
 
   private static boolean isValidDefault(Schema schema, JsonNode defaultValue) {
+    return isValidDefault(schema, defaultValue, false);
+  }
+
+  private static boolean isValidDefault(Schema schema, JsonNode defaultValue, boolean elementCheck) {
     if (defaultValue == null)
       return false;
     switch (schema.getType()) {
-    case STRING:
-    case BYTES:
-    case ENUM:
-    case FIXED:
-      return defaultValue.isTextual();
-    case INT:
-    case LONG:
-    case FLOAT:
-    case DOUBLE:
-      return defaultValue.isNumber();
-    case BOOLEAN:
-      return defaultValue.isBoolean();
-    case NULL:
-      return defaultValue.isNull();
-    case ARRAY:
-      if (!defaultValue.isArray())
-        return false;
-      for (JsonNode element : defaultValue)
-        if (!isValidDefault(schema.getElementType(), element))
+      case STRING:
+      case BYTES:
+      case ENUM:
+      case FIXED:
+        return defaultValue.isTextual();
+      case INT:
+      case LONG:
+      case FLOAT:
+      case DOUBLE:
+        return defaultValue.isNumber();
+      case BOOLEAN:
+        return defaultValue.isBoolean();
+      case NULL:
+        return defaultValue.isNull();
+      case ARRAY:
+        if (!defaultValue.isArray())
           return false;
-      return true;
-    case MAP:
-      if (!defaultValue.isObject())
-        return false;
-      for (JsonNode value : defaultValue)
-        if (!isValidDefault(schema.getValueType(), value))
+        for (JsonNode element : defaultValue)
+          if (!isValidDefault(schema.getElementType(), element, true))
+            return false;
+        return true;
+      case MAP:
+        if (!defaultValue.isObject())
           return false;
-      return true;
-    case UNION: // union default: first branch
-      return isValidDefault(schema.getTypes().get(0), defaultValue);
-    case RECORD:
-      if (!defaultValue.isObject())
-        return false;
-      for (Field field : schema.getFields())
-        if (!isValidDefault(field.schema(),
-            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue()))
+        for (JsonNode value : defaultValue)
+          if (!isValidDefault(schema.getValueType(), value, true))
+            return false;
+        return true;
+      case UNION:
+        return elementCheck
+          ? isValidDefault(schema.getTypes().get(0), defaultValue)
+          || isValidDefault(schema.getTypes().get(1), defaultValue)
+          : isValidDefault(schema.getTypes().get(0), defaultValue);
+      case RECORD:
+        if (!defaultValue.isObject())
           return false;
-      return true;
-    default:
-      return false;
+        for (Field field : schema.getFields())
+          if (!isValidDefault(field.schema(),
+            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue(), true))
+            return false;
+        return true;
+      default:
+        return false;
     }
   }
 
