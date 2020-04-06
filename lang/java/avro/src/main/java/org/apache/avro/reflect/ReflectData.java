@@ -17,6 +17,26 @@
  */
 package org.apache.avro.reflect;
 
+import org.apache.avro.AvroRuntimeException;
+import org.apache.avro.AvroTypeException;
+import org.apache.avro.Conversion;
+import org.apache.avro.JsonProperties;
+import org.apache.avro.LogicalType;
+import org.apache.avro.Protocol;
+import org.apache.avro.Protocol.Message;
+import org.apache.avro.Schema;
+import org.apache.avro.SchemaNormalization;
+import org.apache.avro.generic.GenericContainer;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericFixed;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.avro.io.BinaryData;
+import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.DatumWriter;
+import org.apache.avro.specific.FixedSize;
+import org.apache.avro.specific.SpecificData;
+import org.apache.avro.util.ClassUtils;
+
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -41,26 +61,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.avro.AvroRuntimeException;
-import org.apache.avro.AvroTypeException;
-import org.apache.avro.Conversion;
-import org.apache.avro.JsonProperties;
-import org.apache.avro.LogicalType;
-import org.apache.avro.Protocol;
-import org.apache.avro.Protocol.Message;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericContainer;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericFixed;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.io.BinaryData;
-import org.apache.avro.util.ClassUtils;
-import org.apache.avro.io.DatumReader;
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.specific.FixedSize;
-import org.apache.avro.specific.SpecificData;
-import org.apache.avro.SchemaNormalization;
-
 /** Utilities to use existing Java classes and interfaces via reflection. */
 public class ReflectData extends SpecificData {
   @Override
@@ -82,14 +82,14 @@ public class ReflectData extends SpecificData {
     }
 
     @Override
-    protected Schema createFieldSchema(Field field, Map<String, Schema> names) {
-      Schema schema = super.createFieldSchema(field, names);
+    protected Schema createFieldSchema(Field field, Map<String, Schema> names, Object defaultValue) {
+      Schema schema = super.createFieldSchema(field, names, defaultValue);
       if (field.getType().isPrimitive()) {
         // for primitive values, such as int, a null will result in a
         // NullPointerException at read time
         return schema;
       }
-      return makeNullable(schema);
+      return makeNullable(schema, defaultValue);
     }
   }
 
@@ -612,10 +612,10 @@ public class ReflectData extends SpecificData {
           for (Field field : getCachedFields(c))
             if ((field.getModifiers() & (Modifier.TRANSIENT | Modifier.STATIC)) == 0
                 && !field.isAnnotationPresent(AvroIgnore.class)) {
-              Schema fieldSchema = createFieldSchema(field, names);
               AvroDefault defaultAnnotation = field.getAnnotation(AvroDefault.class);
               Object defaultValue = (defaultAnnotation == null) ? null
                   : Schema.parseJsonToObject(defaultAnnotation.value());
+              Schema fieldSchema = createFieldSchema(field, names, defaultValue);
               annotatedDoc = field.getAnnotation(AvroDoc.class); // Docstring
               doc = (annotatedDoc != null) ? annotatedDoc.value() : null;
 
@@ -689,8 +689,18 @@ public class ReflectData extends SpecificData {
     return Schema.createUnion(branches);
   }
 
-  /** Create and return a union of the null schema and the provided schema. */
+  /**
+   * Create and return a union of the null schema and the provided schema with
+   * null as default value
+   */
   public static Schema makeNullable(Schema schema) {
+    return makeNullable(schema, null);
+  }
+
+  /**
+   * Create and return a union of the null schema and the provided schema.
+   */
+  public static Schema makeNullable(Schema schema, Object defaultValue) {
     if (schema.getType() == Schema.Type.UNION) {
       // check to see if the union already contains NULL
       for (Schema subType : schema.getTypes()) {
@@ -705,7 +715,11 @@ public class ReflectData extends SpecificData {
       return Schema.createUnion(withNull);
     } else {
       // create a union with null
-      return Schema.createUnion(Arrays.asList(Schema.create(Schema.Type.NULL), schema));
+      if (defaultValue == null) {
+        return Schema.createUnion(Arrays.asList(Schema.create(Schema.Type.NULL), schema));
+      } else {
+        return Schema.createUnion(Arrays.asList(schema, Schema.create(Schema.Type.NULL)));
+      }
     }
   }
 
@@ -738,8 +752,10 @@ public class ReflectData extends SpecificData {
     return fieldsList;
   }
 
-  /** Create a schema for a field. */
-  protected Schema createFieldSchema(Field field, Map<String, Schema> names) {
+  /**
+   * Create a schema for a field.
+   */
+  protected Schema createFieldSchema(Field field, Map<String, Schema> names, Object defaultValue) {
     AvroEncode enc = field.getAnnotation(AvroEncode.class);
     if (enc != null)
       try {
@@ -761,7 +777,7 @@ public class ReflectData extends SpecificData {
       schema = Schema.create(Schema.Type.STRING);
     }
     if (field.isAnnotationPresent(Nullable.class)) // nullable
-      schema = makeNullable(schema);
+      schema = makeNullable(schema, defaultValue);
     return schema;
   }
 
@@ -796,10 +812,12 @@ public class ReflectData extends SpecificData {
   }
 
   private Message getMessage(Method method, Protocol protocol, Map<String, Schema> names,
-      Map<? extends Type, Type> genericTypeMap) {
+      Map<TypeVariable<?>, Type> genericTypeMap) {
     List<Schema.Field> fields = new ArrayList<>();
     for (Parameter parameter : method.getParameters()) {
-      Schema paramSchema = getSchema(genericTypeMap.getOrDefault(parameter.getParameterizedType(), parameter.getType()),
+      Schema paramSchema = getSchema(
+          genericTypeMap.getOrDefault(parameter.getParameterizedType(),
+              parameter.getParameterizedType() != null ? parameter.getParameterizedType() : parameter.getType()),
           names);
       for (Annotation annotation : parameter.getAnnotations()) {
         if (annotation instanceof AvroSchema) // explicit schema
