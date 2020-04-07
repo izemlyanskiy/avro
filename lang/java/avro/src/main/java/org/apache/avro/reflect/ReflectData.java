@@ -819,6 +819,7 @@ public class ReflectData extends SpecificData {
           genericTypeMap.getOrDefault(parameter.getParameterizedType(),
               parameter.getParameterizedType() != null ? parameter.getParameterizedType() : parameter.getType()),
           names);
+      String paramName = parameter.getName();
       for (Annotation annotation : parameter.getAnnotations()) {
         if (annotation instanceof AvroSchema) // explicit schema
           paramSchema = new Schema.Parser().parse(((AvroSchema) annotation).value());
@@ -826,8 +827,10 @@ public class ReflectData extends SpecificData {
           paramSchema = getAnnotatedUnion(((Union) annotation), names);
         else if (annotation instanceof Nullable) // nullable
           paramSchema = makeNullable(paramSchema);
+        else if (annotation instanceof AvroName)
+          paramName = ((AvroName) annotation).value();
       }
-      fields.add(new Schema.Field(parameter.getName(), paramSchema, null /* doc */, null));
+      fields.add(new Schema.Field(paramName, paramSchema, null /* doc */, null));
     }
 
     Schema request = Schema.createRecord(fields);

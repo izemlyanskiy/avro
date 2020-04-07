@@ -26,7 +26,7 @@ import java.lang.annotation.Target;
  * Sets the avroname for this java field. When reading into this class, a
  * reflectdatumreader looks for a schema field with the avroname.
  */
-@Target(ElementType.FIELD)
+@Target({ ElementType.FIELD, ElementType.PARAMETER })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AvroName {
   String value();
