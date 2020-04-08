@@ -29,8 +29,26 @@ import org.apache.avro.util.internal.Accessor;
 import org.apache.avro.util.internal.Accessor.FieldAccessor;
 import org.apache.avro.util.internal.JacksonUtils;
 
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * An abstract data type.
@@ -1532,49 +1550,49 @@ public abstract class Schema extends JsonProperties implements Serializable {
     if (defaultValue == null)
       return false;
     switch (schema.getType()) {
-      case STRING:
-      case BYTES:
-      case ENUM:
-      case FIXED:
-        return defaultValue.isTextual();
-      case INT:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-        return defaultValue.isNumber();
-      case BOOLEAN:
-        return defaultValue.isBoolean();
-      case NULL:
-        return defaultValue.isNull();
-      case ARRAY:
-        if (!defaultValue.isArray())
-          return false;
-        for (JsonNode element : defaultValue)
-          if (!isValidDefault(schema.getElementType(), element, true))
-            return false;
-        return true;
-      case MAP:
-        if (!defaultValue.isObject())
-          return false;
-        for (JsonNode value : defaultValue)
-          if (!isValidDefault(schema.getValueType(), value, true))
-            return false;
-        return true;
-      case UNION:
-        return elementCheck
-          ? isValidDefault(schema.getTypes().get(0), defaultValue)
-          || isValidDefault(schema.getTypes().get(1), defaultValue)
-          : isValidDefault(schema.getTypes().get(0), defaultValue);
-      case RECORD:
-        if (!defaultValue.isObject())
-          return false;
-        for (Field field : schema.getFields())
-          if (!isValidDefault(field.schema(),
-            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue(), true))
-            return false;
-        return true;
-      default:
+    case STRING:
+    case BYTES:
+    case ENUM:
+    case FIXED:
+      return defaultValue.isTextual();
+    case INT:
+    case LONG:
+    case FLOAT:
+    case DOUBLE:
+      return defaultValue.isNumber();
+    case BOOLEAN:
+      return defaultValue.isBoolean();
+    case NULL:
+      return defaultValue.isNull();
+    case ARRAY:
+      if (!defaultValue.isArray())
         return false;
+      for (JsonNode element : defaultValue)
+        if (!isValidDefault(schema.getElementType(), element, true))
+          return false;
+      return true;
+    case MAP:
+      if (!defaultValue.isObject())
+        return false;
+      for (JsonNode value : defaultValue)
+        if (!isValidDefault(schema.getValueType(), value, true))
+          return false;
+      return true;
+    case UNION:
+      return elementCheck
+          ? isValidDefault(schema.getTypes().get(0), defaultValue)
+              || isValidDefault(schema.getTypes().get(1), defaultValue)
+          : isValidDefault(schema.getTypes().get(0), defaultValue);
+    case RECORD:
+      if (!defaultValue.isObject())
+        return false;
+      for (Field field : schema.getFields())
+        if (!isValidDefault(field.schema(),
+            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue(), true))
+          return false;
+      return true;
+    default:
+      return false;
     }
   }
 
