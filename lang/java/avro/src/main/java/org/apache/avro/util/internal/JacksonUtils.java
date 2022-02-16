@@ -59,7 +59,7 @@ public class JacksonUtils {
 
   @SuppressWarnings(value = "unchecked")
   static void toJson(Object datum, JsonGenerator generator) throws IOException {
-    if (datum == JsonProperties.NULL_VALUE) { // null
+    if (datum == JsonProperties.NULL_VALUE || datum == null) { // null
       generator.writeNull();
     } else if (datum instanceof Map) { // record, map
       generator.writeStartObject();
@@ -109,6 +109,12 @@ public class JacksonUtils {
       return null;
     } else if (jsonNode.isNull()) {
       return JsonProperties.NULL_VALUE;
+    } else if (schema != null && schema.getType().equals(Schema.Type.UNION)) {
+      if (!schema.getTypes().get(0).getType().equals(Schema.Type.NULL)) {
+        return toObject(jsonNode, schema.getTypes().get(0));
+      } else {
+        return toObject(jsonNode, schema.getTypes().get(1));
+      }
     } else if (jsonNode.isBoolean()) {
       return jsonNode.asBoolean();
     } else if (jsonNode.isInt()) {
@@ -175,7 +181,7 @@ public class JacksonUtils {
 
   /**
    * Convert an object into a map
-   * 
+   *
    * @param datum The object
    * @return Its Map representation
    */

@@ -127,7 +127,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
 
     private final String name;
 
-    private Type() {
+    Type() {
       this.name = this.name().toLowerCase(Locale.ENGLISH);
     }
 
@@ -525,7 +525,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
 
       private final String name;
 
-      private Order() {
+      Order() {
         this.name = this.name().toLowerCase(Locale.ENGLISH);
       }
     };
@@ -602,7 +602,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
 
     public String name() {
       return name;
-    };
+    }
 
     /** The position of this field within the record. */
     public int pos() {
@@ -704,7 +704,7 @@ public abstract class Schema extends JsonProperties implements Serializable {
         this.name = validateName(name);
       } else { // qualified name
         space = name.substring(0, lastDot); // get space from name
-        this.name = validateName(name.substring(lastDot + 1, name.length()));
+        this.name = validateName(name.substring(lastDot + 1));
       }
       if ("".equals(space))
         space = null;
@@ -1584,6 +1584,10 @@ public abstract class Schema extends JsonProperties implements Serializable {
   }
 
   private static boolean isValidDefault(Schema schema, JsonNode defaultValue) {
+    return isValidDefault(schema, defaultValue, false);
+  }
+
+  private static boolean isValidDefault(Schema schema, JsonNode defaultValue, boolean elementCheck) {
     if (defaultValue == null)
       return false;
     switch (schema.getType()) {
@@ -1607,24 +1611,27 @@ public abstract class Schema extends JsonProperties implements Serializable {
       if (!defaultValue.isArray())
         return false;
       for (JsonNode element : defaultValue)
-        if (!isValidDefault(schema.getElementType(), element))
+        if (!isValidDefault(schema.getElementType(), element, true))
           return false;
       return true;
     case MAP:
       if (!defaultValue.isObject())
         return false;
       for (JsonNode value : defaultValue)
-        if (!isValidDefault(schema.getValueType(), value))
+        if (!isValidDefault(schema.getValueType(), value, true))
           return false;
       return true;
-    case UNION: // union default: first branch
-      return isValidDefault(schema.getTypes().get(0), defaultValue);
+    case UNION:
+      return elementCheck
+          ? isValidDefault(schema.getTypes().get(0), defaultValue)
+              || isValidDefault(schema.getTypes().get(1), defaultValue)
+          : isValidDefault(schema.getTypes().get(0), defaultValue);
     case RECORD:
       if (!defaultValue.isObject())
         return false;
       for (Field field : schema.getFields())
         if (!isValidDefault(field.schema(),
-            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue()))
+            defaultValue.has(field.name()) ? defaultValue.get(field.name()) : field.defaultValue(), true))
           return false;
       return true;
     default:
