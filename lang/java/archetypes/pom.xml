@@ -22,7 +22,7 @@
   <parent>
     <groupId>org.apache.avro</groupId>
     <artifactId>avro-parent</artifactId>
-    <version>1.11.0.3pp</version>
+    <version>1.11.0.4pp</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
