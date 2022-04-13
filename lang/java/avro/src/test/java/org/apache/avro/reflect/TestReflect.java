@@ -714,7 +714,9 @@ public class TestReflect {
   }
 
   private void check(java.lang.reflect.Type type, String schemaJson) {
-    assertEquals(schemaJson, ReflectData.get().getSchema(type).toString());
+    Schema expected = new Schema.Parser().parse(schemaJson);
+    Schema schema = ReflectData.get().getSchema(type);
+    assertEquals(expected.getObjectProps(), schema.getObjectProps());
   }
 
   @Test

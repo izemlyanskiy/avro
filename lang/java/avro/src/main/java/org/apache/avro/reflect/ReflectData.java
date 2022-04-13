@@ -55,7 +55,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -857,9 +856,7 @@ public class ReflectData extends SpecificData {
     do {
       if (excludeJava && c.getPackage() != null && c.getPackage().getName().startsWith("java."))
         break; // skip java built-in classes
-      Field[] declaredFields = c.getDeclaredFields();
-      Arrays.sort(declaredFields, Comparator.comparing(Field::getName));
-      for (Field field : declaredFields)
+      for (Field field : c.getDeclaredFields())
         if ((field.getModifiers() & (Modifier.TRANSIENT | Modifier.STATIC)) == 0)
           if (fields.put(field.getName(), field) != null)
             throw new AvroTypeException(c + " contains two fields named: " + field);
